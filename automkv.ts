@@ -16,8 +16,16 @@ type Edit = {
 };
 
 function printUsage() {
-    console.log("Usage: automkv [watch folder | run file.yml]");
-    Deno.exit(2);
+    console.log("Usage:");
+    console.log("  automkv watch <folder>");
+    console.log("    Monitor the target folder (and subfolders) for files ending in");
+    console.log("    'automkv.yml'.  Any files found will have their destination folders");
+    console.log("    monitored for changes, and the edits in the file will run when any");
+    console.log("    updates have finished.");
+    console.log("  automkv run <target_file>");
+    console.log("    Apply the edits in a 'automkv.yml' file immediately to all target");
+    console.log("    files in the target folder");
+    Deno.exit(0);
 }
 
 async function getExe(exe: string): Promise<string> {
