@@ -30,16 +30,16 @@ jobs:
           deno-version: v1.x
 
       - name: Compile x86_64-unknown-linux-gnu
-        run: deno compile --allow-run --allow-env --allow-read --allow-write --target x86_64-unknown-linux-gnu --output release/x86_64-unknown-linux-gnu/automkv
+        run: deno compile --allow-run --allow-env --allow-read --allow-write --target x86_64-unknown-linux-gnu --output release/x86_64-unknown-linux-gnu/automkv automkv.ts
         
       - name: Compile x86_64-pc-windows-msvc
-        run: deno compile --allow-run --allow-env --allow-read --allow-write --target x86_64-pc-windows-msvc --output release/x86_64-pc-windows-msvc/automkv.exe
+        run: deno compile --allow-run --allow-env --allow-read --allow-write --target x86_64-pc-windows-msvc --output release/x86_64-pc-windows-msvc/automkv.exe automkv.ts
         
       - name: Compile x86_64-apple-darwin
-        run: deno compile --allow-run --allow-env --allow-read --allow-write --target x86_64-apple-darwin --output release/x86_64-apple-darwin/automkv
+        run: deno compile --allow-run --allow-env --allow-read --allow-write --target x86_64-apple-darwin --output release/x86_64-apple-darwin/automkv automkv.ts
         
       - name: Compile aarch64-apple-darwin
-        run: deno compile --allow-run --allow-env --allow-read --allow-write --target aarch64-apple-darwin --output release/aarch64-apple-darwin/automkv
+        run: deno compile --allow-run --allow-env --allow-read --allow-write --target aarch64-apple-darwin --output release/aarch64-apple-darwin/automkv automkv.ts
         
       - uses: ncipollo/release-action@v1
         with:
