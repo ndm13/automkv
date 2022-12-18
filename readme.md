@@ -1,16 +1,39 @@
 # automkv
-Automate MKVToolNix using Deno
+Automate MKVToolNix with the power of Deno and YAML.
+
+## Prerequisites
+Install [MKVToolNix](https://mkvtoolnix.download/downloads.html), or add the
+following executables to your path:
+- `mkvpropedit`
+- `mkvextract`
+
+These are included with MKVToolNix.  Alternatively, you can set the paths to
+these files directly in the `MKVPROPEDIT` and `MKVEXTRACT` environment
+variables, respectively.
+
+## Installation
+Download the [latest release](https://github.com/ndm13/automkv/releases) for
+your platform, or build yourself using Deno:
+```shell
+git clone https://github.com/ndm13/automkv.git
+deno compile --allow-run --allow-env --allow-read --allow-write automkv.ts
+```
+We require the following permissions:
+- `allow-run` to interface with `mkvpropedit`/`mkvextract`
+- `allow-env` to load alternate paths from environment variables
+- `allow-read` to load configuration files
+- `allow-write` to verify MKV files aren't locked before editing
 
 ## Usage
 ```shell
-automkv watch folder
+automkv watch [folder-name]
 ```
 Scans a folder recursively for any `automkv.yml` files, and watches for new
 ones to be added.  For any files it finds it will watch all the directories
 specified in those file for new media, and will apply the edits to those files.
 
 ```shell
-automkv run automkv.yml
+automkv run [automkv-yaml-file]
 ```
 Directly runs an `automkv.yml` script (one time) and applies the edits to the
 files in the script.
