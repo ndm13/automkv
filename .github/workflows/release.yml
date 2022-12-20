@@ -24,8 +24,9 @@ jobs:
 
       - name: Compile ${{ matrix.target }}
         run: |
-          deno compile --allow-run --allow-env --allow-read --allow-write --target ${{ matrix.target }} --output release/automkv automkv.ts
-          tar -czvf release/${{ matrix.target }}.tar.gz ./release
+          deno compile --allow-run --allow-env --allow-read --allow-write --target ${{ matrix.target }} --output build/automkv automkv.ts
+          mkdir release
+          tar -czvf release/${{ matrix.target }}.tar.gz ./build
         
       - uses: ncipollo/release-action@v1
         with:
