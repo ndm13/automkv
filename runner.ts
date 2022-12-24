@@ -10,23 +10,24 @@ export default class Runner {
         this.mkvpropedit = mkvpropedit;
     }
 
-    async runBatch(automkv: string): Promise<boolean> {
+    async batch(automkv: string): Promise<number> {
         const yml = readYaml(automkv);
-        if (!yml) return true;
+        if (!yml) return 0;
 
+        const promises = [];
         for (const batch of yml) {
             const folder = path.join(path.dirname(automkv), batch.watch.folder || '.');
             for await (const file of Deno.readDir(folder))
                 if (file.name.match(batch.watch.files))
-                    return this.runEdits(path.join(folder, file.name), batch.edits);
+                    promises.push(this.edits(path.join(folder, file.name), batch.edits));
         }
 
-        return true;
+        return Promise.all(promises).then((mods: number[]) => mods.reduce((a, b) => a + b));
     }
 
-    async runEdits(file: string, edits: Edit[]): Promise<boolean> {
+    async edits(file: string, edits: Edit[]): Promise<number> {
         if (!edits || edits.length == 0)
-            return true;
+            return 0;
 
         log.info(`Running edits ${JSON.stringify(edits)} on ${file}`);
         const cmd = [this.mkvpropedit, file];
@@ -38,6 +39,6 @@ export default class Runner {
         log.debug(cmd.join(' '));
         return await Deno.run({cmd: cmd, stdout: "inherit", stderr: "inherit"})
             .status()
-            .then(s => s.success);
+            .then(s => s.success ? 1 : 0);
     }
 }

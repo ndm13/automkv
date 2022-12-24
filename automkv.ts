@@ -1,6 +1,6 @@
 import {getExe, printUsage} from "./utils.ts";
 import Runner from "./runner.ts";
-import Watcher from "./watch.ts";
+import Watcher from "./watcher.ts";
 
 const mkvpropedit = await getExe("mkvpropedit");
 const mkvextract = await getExe("mkvextract");
@@ -29,7 +29,7 @@ switch (Deno.args[0]) {
         break;
     }
     case "run": {
-        await runner.runBatch(Deno.args[1]);
+        await runner.batch(Deno.args[1]);
         break;
     }
     case "help":
