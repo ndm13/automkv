@@ -26,6 +26,11 @@ We require the following permissions:
 
 ## Usage
 ```shell
+automkv watch [automkv-yaml-file]
+```
+Watches all the directories specified in the provided `automkv.yml` file for
+new media, and will apply the edits to those files.
+```shell
 automkv watch [folder-name]
 ```
 Scans a folder recursively for any `automkv.yml` files, and watches for new
@@ -39,9 +44,9 @@ Directly runs an `automkv.yml` script (one time) and applies the edits to the
 files in the script.
 
 ## `automkv.yml`
-This is the script format for automkv.  When using `automkv watch`, any file
-that *ends* in `automkv.yml` is monitored, so you could use `tv-show-name.automkv.yml`
-for instance.
+This is the script format for automkv.  When using `automkv watch [folder]`,
+any file that *ends* in `automkv.yml` is monitored, so you could use
+`tv-show-name.automkv.yml` for instance.
 
 Included is an example file (`automkv.example.yml`) to get you started:
 ```yml
