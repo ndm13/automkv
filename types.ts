@@ -3,7 +3,8 @@ export type Batch = {
         folder: string;
         files: RegExp;
     };
-    edits: Edit[];
+    edits?: Edit[];
+    chapters?: string[];
 };
 
 export type Edit = {

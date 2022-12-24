@@ -59,7 +59,12 @@ batch:                                  # Every file has a root batch element
         set:                            # Set values to update
           flag-commentary: 1            # Booleans are 1/0 as per spec
           name: Director's Commentary   # Strings don't need any special formatting
+    chapters:                           # Chapters will only be mapped if there is
+      - Opening Credits                 #  an entry for each chapter.
+      - Episode                         # automkv files may include chapters, edits,
+      - Ending Credits                  #  both, or neither (but why neither?)
 ```
 The commands under `edits` use the same formatting as `mkvpropedit` and are
 passed more or less unchanged: see [the guide](https://mkvtoolnix.download/doc/mkvpropedit.html)
-for more details.
+for more details.  For the `chapters` section, updated chapter titles will only
+be applied if the actual number of chapters is the same as the number provided.

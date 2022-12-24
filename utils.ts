@@ -30,8 +30,9 @@ export function readYaml(ymlPath: string): Batch[] {
     // While functionally a map, we need to make it official
     for (const batch of yml) {
         batch.watch.files = new RegExp(batch.watch.files);
-        for (const edit of batch.edits)
-            edit.set = new Map(Object.entries(edit.set));
+        if (batch.edits)
+            for (const edit of batch.edits)
+                edit.set = new Map(Object.entries(edit.set));
     }
 
     return yml;
