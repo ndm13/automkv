@@ -1,104 +1,95 @@
-import {path, log} from "./deps.ts";
+import {log, path} from "./deps.ts";
 
-import {readYaml} from "./utils.ts";
+import {readYaml, reduceVoid, reduceVoidPromise} from "./utils.ts";
 import Runner from "./runner.ts";
+import {Watch} from "./types.ts";
 
-const watched = new Map<string, Deno.FsWatcher[]>();
+export default class Watcher {
+    readonly runner;
 
-export function watch(ymlPath: string, runner: Runner): void {
-    const yml = readYaml(ymlPath);
-    if (!yml) return;
+    constructor(runner: Runner) {
+        this.runner = runner;
+    }
 
-    const watching = [];
-    for (const batch of yml) {
-        const folder = path.join(path.dirname(ymlPath), batch.watch.folder);
+    private watch(folder: string, filter: RegExp, update: (file: string) => void): Watch {
         Deno.mkdirSync(folder, {recursive: true});
         const watcher = Deno.watchFs(folder);
-        watching.push(watcher);
-        (async function () {
-            const processing = new Set<string>();
-            const queued = new Set<string>();
+        const latch = new Set<string>();
+        const promise = async () => {
+            for await (const event of watcher) {
+                if (event.paths.length < 1) continue;
+                const file = event.paths[0];
+                if (event.kind !== "modify") continue;
+                if (latch.delete(file)) continue;
+                if (!filter.test(file)) continue;
+                await Deno.open(file, {write: true})
+                    .then(h => Deno.close(h.rid))
+                    .then(() => latch.add(file))
+                    .then(() => update(file))
+                    .catch(() => log.warning(`Waiting for file to become ready: ${file}`));
+            }
+        };
+        return {
+            cancel: () => watcher.close(),
+            promise: promise()
+        }
+    }
+
+    file(configPath: string): Watch {
+        return readYaml(configPath).map(batch => this.watch(
+            path.join(path.dirname(configPath), batch.watch.folder),
+            batch.watch.files,
+            file => this.runner.runEdits(file, batch.edits))
+        ).reduce((last, current) => {
+            return {
+                cancel: reduceVoid(last.cancel, current.cancel),
+                promise: reduceVoidPromise(last.promise, current.promise)
+            };
+        });
+    }
+
+    folder(folder: string): Watch {
+        const watching = new Map<string, Watch>();
+        const dir = path.join(Deno.cwd(), folder)
+        for (const entry of Deno.readDirSync(dir)) {
+            if (entry.name.endsWith("automkv.yml")) {
+                const file = path.join(dir, entry.name);
+                log.info(`Watching ${file}`);
+                watching.set(file, this.file(file));
+            }
+        }
+        const watcher = Deno.watchFs(dir, {recursive: true});
+        const promise = async () => {
             for await (const event of watcher) {
                 if (event.paths.length < 1) continue;
 
-                const file = event.paths[0];
-                if (!file.match(batch.watch.files)) continue;
-                if (["create", "modify"].indexOf(event.kind) < 0) continue;
+                const path = event.paths[0];
+                if (!path.endsWith("automkv.yml")) continue;
 
-                // If this update is because of us, ignore it
-                if (processing.delete(file)) {
-                    log.debug("unprocess", event.kind);
-                    continue;
+                switch (event.kind) {
+                    case "create":
+                        log.info(`Discovered ${path}`);
+                        watching.set(path, this.file(path));
+                        break;
+                    case "modify":
+                        log.info(`Updating ${path}`);
+                        if (watching.has(path))
+                            (watching.get(path) as Watch).cancel();
+                        watching.set(path, this.file(path));
+                        break;
+                    case "remove":
+                        log.info(`Removing ${path}`);
+                        (watching.get(path) as Watch).cancel();
+                        watching.delete(path);
+                        break;
                 }
-                // Ensure operation is actually finished
-                if (queued.has(file)) {
-                    log.debug("queue skip", event.kind);
-                    continue;
-                }
-                queued.add(file);
-                setTimeout(() => {
-                    // Check for write locks
-                    log.debug("Write test")
-                    Deno.open(file, {write: true})
-                        .then(h => Deno.close(h.rid))
-                        .then(() => {
-                            if (processing.has(file)) {
-                                log.debug("skip", event.kind);
-                                return;
-                            }
-                            processing.add(file);
-                            log.debug("process", event.kind);
-                            if (!runner.runEdits(file, batch.edits)) {
-                                processing.delete(file);
-                            }
-                        })
-                        .catch(() => log.warning(`Waiting for file to become ready: ${file}`))
-                        .then(() => queued.delete(file));
-                }, 100);
             }
-        })();
-    }
-    watched.set(ymlPath, watching);
-}
-
-function unwatch(automkv: string): void {
-    if (watched.has(automkv)) {
-        for (const watcher of watched.get(automkv) || [])
-            watcher.close();
-        watched.delete(automkv);
-    }
-}
-
-export async function watchAutoFiles(runner: Runner) {
-    const dir = path.join(Deno.cwd(), Deno.args[1]);
-    for await (const entry of Deno.readDir(dir)) {
-        if (entry.name.endsWith("automkv.yml")) {
-            const file = path.join(dir, entry.name);
-            log.info(`Watching ${file}`);
-            watch(file, runner);
-        }
-    }
-    const watcher = Deno.watchFs(dir, {recursive: true});
-    for await (const event of watcher) {
-        if (event.paths.length < 1) continue;
-
-        const path = event.paths[0];
-        if (!path.endsWith("automkv.yml")) continue;
-
-        switch (event.kind) {
-            case "create":
-                log.info(`Watching ${path}`);
-                watch(path, runner);
-                break;
-            case "modify":
-                log.info(`Updating ${path}`);
-                unwatch(path);
-                watch(path, runner);
-                break;
-            case "remove":
-                log.info(`Removing ${path}`);
-                unwatch(path);
-                break;
-        }
+            for (const watch of watching.values())
+                watch.cancel();
+        };
+        return {
+            cancel: () => watcher.close(),
+            promise: promise()
+        };
     }
 }

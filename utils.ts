@@ -1,9 +1,13 @@
-import {path, log, yaml} from "./deps.ts";
+import {log, path, yaml} from "./deps.ts";
 
 import {Batch} from "./types.ts";
 
 export function printUsage() {
     console.log("Usage:");
+    console.log("  automkv watch <file>");
+    console.log("    Monitor the target 'automkv.yml' file's destination folder for any");
+    console.log("    changes, and run the edits in the file when any updates have");
+    console.log("    finished.")
     console.log("  automkv watch <folder>");
     console.log("    Monitor the target folder (and subfolders) for files ending in");
     console.log("    'automkv.yml'.  Any files found will have their destination folders");
@@ -15,18 +19,20 @@ export function printUsage() {
     Deno.exit(0);
 }
 
-export function readYaml(ymlPath: string): Batch[] | undefined {
+export function readYaml(ymlPath: string): Batch[] {
     const yml = (yaml.parse(Deno.readTextFileSync(ymlPath)) as { batch: Batch[] }).batch;
     if (!yml) {
         log.warning(`Invalid file: ${ymlPath}`);
         log.warning("Expecting root element to be 'batch'");
         log.warning("This file will be skipped.")
-        return undefined;
+        throw new Error("Improper YAML file");
     }
     // While functionally a map, we need to make it official
-    for (const batch of yml)
+    for (const batch of yml) {
+        batch.watch.files = new RegExp(batch.watch.files);
         for (const edit of batch.edits)
             edit.set = new Map(Object.entries(edit.set));
+    }
 
     return yml;
 }
@@ -91,4 +97,16 @@ export async function getExe(exe: string): Promise<string> {
         }
     }
     return file;
+}
+
+export function reduceVoid(a: () => void, b: () => void): () => void {
+    return () => {
+        a();
+        b();
+    };
+}
+
+export function reduceVoidPromise(a: Promise<void>, b: Promise<void>): Promise<void> {
+    return Promise.all([a, b]).then(() => {
+    });
 }
