@@ -47,7 +47,7 @@ switch (Deno.args[0]) {
         break;
     }
     case "run": {
-        await runner.batch(new Job(Deno.args[1]));
+        await runner.job(new Job(Deno.args[1]));
         break;
     }
     case "help":

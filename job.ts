@@ -13,21 +13,21 @@ export type Edit = {
     set: Map<string, string>;
 };
 
-export class InvalidJobException extends Error {
-    constructor(message: string) {
-        super(message);
-        this.name = this.constructor.name;
-    }
-}
-
 export default class Job {
     readonly file: string;
     readonly batches: Batch[];
+
+    /**
+     * Creates a Job by loading data from an `automkv.yml` file.  This will
+     * throw an InvalidJobException if the data is incorrectly formatted.
+     *
+     * @param file  An `automkv.yml` file
+     */
     constructor(file: string) {
         this.file = file;
         const yml = (yaml.parse(Deno.readTextFileSync(file)) as { batch: Batch[] }).batch;
         if (!yml)
-            throw new InvalidJobException("Improper YAML file: expected root element to be 'batch'");
+            throw new Job.InvalidJobException("Improper YAML file: expected root element to be 'batch'");
 
         // While functionally a map, we need to make it official
         for (const batch of yml) {
@@ -37,5 +37,12 @@ export default class Job {
                     edit.set = new Map(Object.entries(edit.set));
         }
         this.batches = yml;
+    }
+
+    static InvalidJobException = class extends Error {
+        constructor(message: string) {
+            super(message);
+            this.name = this.constructor.name;
+        }
     }
 }

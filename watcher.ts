@@ -2,20 +2,41 @@ import {log, path} from "./deps.ts";
 
 import {reduceVoid, reduceVoidPromise} from "./utils.ts";
 import Runner from "./runner.ts";
-import Job, {InvalidJobException} from "./job.ts";
+import Job from "./job.ts";
 
 export type Watch = {
+    /**
+     * Cancels this watch, closing underlying system resources and preventing
+     * new events from being received.
+     */
     cancel: () => void;
+
+    /**
+     * A promise that returns when the underlying watch is closed.  This will
+     * likely block until cancel is called.
+     */
     promise: Promise<void>;
 }
 
 export default class Watcher {
     readonly runner;
 
+    /**
+     * Creates a Watcher.  See Watcher#file and Watcher#folder for more details
+     * on usage.
+     *
+     * @param runner    The runner to use when changes are detected
+     */
     constructor(runner: Runner) {
         this.runner = runner;
     }
 
+    /**
+     * Watch a job.  When any files covered by this job are modified, then this
+     * job will be run against those files.
+     *
+     * @param job   The job to watch
+     */
     file(job: Job): Watch {
         return job.batches.map(batch => this.watch(
             path.join(path.dirname(job.file), batch.watch.folder),
@@ -38,6 +59,13 @@ export default class Watcher {
         });
     }
 
+    /**
+     * Watch a folder for job files.  When these files are detected, their jobs
+     * will be watched also.  Note that this will not run the detected jobs,
+     * but will run them on any files changed after the watch has started.
+     *
+     * @param folder    The folder (and subfolders) to watch for jobs
+     */
     folder(folder: string): Watch {
         const watching = new Map<string, Watch>();
         const dir = path.join(Deno.cwd(), folder)
@@ -149,8 +177,8 @@ export default class Watcher {
         try {
             return new Job(file);
         } catch (e) {
-            if (e instanceof InvalidJobException)
-                log.error(`Skipping invalid job ${file}: ${(e as InvalidJobException).message}`);
+            if (e instanceof Job.InvalidJobException)
+                log.error(`Skipping invalid job ${file}: ${e.message}`);
             else
                 throw e;
         }
