@@ -11,30 +11,6 @@ export default class Watcher {
         this.runner = runner;
     }
 
-    private watch(folder: string, filter: RegExp, update: (file: string) => void): Watch {
-        Deno.mkdirSync(folder, {recursive: true});
-        const watcher = Deno.watchFs(folder);
-        const latch = new Set<string>();
-        const promise = async () => {
-            for await (const event of watcher) {
-                if (event.paths.length < 1) continue;
-                const file = event.paths[0];
-                if (event.kind !== "modify") continue;
-                if (latch.delete(file)) continue;
-                if (!filter.test(file)) continue;
-                await Deno.open(file, {write: true})
-                    .then(h => Deno.close(h.rid))
-                    .then(() => latch.add(file))
-                    .then(() => update(file))
-                    .catch(() => log.warning(`Waiting for file to become ready: ${file}`));
-            }
-        };
-        return {
-            cancel: () => watcher.close(),
-            promise: promise()
-        }
-    }
-
     file(configPath: string): Watch {
         return readYaml(configPath).map(batch => this.watch(
             path.join(path.dirname(configPath), batch.watch.folder),
@@ -91,5 +67,29 @@ export default class Watcher {
             cancel: () => watcher.close(),
             promise: promise()
         };
+    }
+
+    private watch(folder: string, filter: RegExp, update: (file: string) => void): Watch {
+        Deno.mkdirSync(folder, {recursive: true});
+        const watcher = Deno.watchFs(folder);
+        const latch = new Set<string>();
+        const promise = async () => {
+            for await (const event of watcher) {
+                if (event.paths.length < 1) continue;
+                const file = event.paths[0];
+                if (event.kind !== "modify") continue;
+                if (latch.delete(file)) continue;
+                if (!filter.test(file)) continue;
+                await Deno.open(file, {write: true})
+                    .then(h => Deno.close(h.rid))
+                    .then(() => latch.add(file))
+                    .then(() => update(file))
+                    .catch(() => log.warning(`Waiting for file to become ready: ${file}`));
+            }
+        };
+        return {
+            cancel: () => watcher.close(),
+            promise: promise()
+        }
     }
 }
