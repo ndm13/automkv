@@ -1,7 +1,6 @@
 import {path, log} from "./deps.ts";
 
-import {Edit} from "./types.ts";
-import {readYaml} from "./utils.ts";
+import Job, {Edit} from "./job.ts";
 
 export default class Runner {
     private readonly decoder: TextDecoder = new TextDecoder();
@@ -9,19 +8,29 @@ export default class Runner {
     private readonly mkvpropedit: string;
     private readonly mkvextract: string;
 
+    /**
+     * Create a new Runner using the provided instances of `mkvpropedit` and
+     * `mkvextract`.
+     *
+     * @param mkvpropedit   Path to the `mkvpropedit` executable
+     * @param mkvextract    Path to the `mkvextract` executable
+     */
     constructor(mkvpropedit: string, mkvextract: string) {
         this.mkvpropedit = mkvpropedit;
         this.mkvextract = mkvextract;
     }
 
-    async batch(automkv: string): Promise<number> {
-        const yml = readYaml(automkv);
-        if (!yml) return 0;
-
+    /**
+     * Directly run a job.  Loops through the batches in the job and runs
+     * Runner#edits and Runner#chapters as appropriate.
+     *
+     * @param job   The job to run
+     */
+    async job(job: Job): Promise<number> {
         const promises = [];
-        for (const batch of yml) {
+        for (const batch of job.batches) {
             if (!batch.edits && !batch.chapters) continue;
-            const folder = path.join(path.dirname(automkv), batch.watch.folder || '.');
+            const folder = path.join(path.dirname(job.file), batch.watch.folder || '.');
             for await (const entry of Deno.readDir(folder))
                 if (entry.name.match(batch.watch.files)) {
                     const file = path.join(folder, entry.name);
@@ -35,6 +44,18 @@ export default class Runner {
         return Promise.all(promises).then((mods: number[]) => mods.reduce((a, b) => a + b));
     }
 
+    /**
+     * Apply `mkvpropedit` edits to an MKV file.  These edits are passed in a
+     * `{edit: "key", set: "value"}` format, such that the behavior is
+     * equivalent to:
+     * ```
+     * mkvpropedit <file> --edit key --set value
+     * ```
+     * Multiple edits are passed within the same command.
+     *
+     * @param file      The file to edit
+     * @param edits     The edits to be performed
+     */
     async edits(file: string, edits: Edit[]): Promise<number> {
         if (!edits || edits.length == 0)
             return 0;
@@ -52,6 +73,14 @@ export default class Runner {
             .then(s => s.success ? 1 : 0);
     }
 
+    /**
+     * Sets the provided MKV's chapters to the provided values, as long as the
+     * actual number of chapters matches the number provided.  Returns the
+     * number of times the file was modified.
+     *
+     * @param file      The file whose chapters will be updated
+     * @param chapters  The new chapters to write
+     */
     async chapters(file: string, chapters: string[]): Promise<number> {
         if (!chapters)
             return 0;
@@ -78,6 +107,13 @@ export default class Runner {
             .then(s => s.success ? 1 : 0);
     }
 
+    /**
+     * Gets the chapter markers from an MKV file using `mkvextract`.  Converts
+     * the output into an array of timecodes.
+     *
+     * @param file  The file from which to extract chapter markers
+     * @private     Internally used by Runner#chapters
+     */
     private async getChapterMarkers(file: string) {
         const cmd = [this.mkvextract, "chapters", file, "-s"];
         log.debug(cmd.join(' '));

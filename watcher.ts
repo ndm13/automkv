@@ -1,19 +1,45 @@
 import {log, path} from "./deps.ts";
 
-import {readYaml, reduceVoid, reduceVoidPromise} from "./utils.ts";
+import {reduceVoid, reduceVoidPromise} from "./utils.ts";
 import Runner from "./runner.ts";
-import {Watch} from "./types.ts";
+import Job from "./job.ts";
+
+export type Watch = {
+    /**
+     * Cancels this watch, closing underlying system resources and preventing
+     * new events from being received.
+     */
+    cancel: () => void;
+
+    /**
+     * A promise that returns when the underlying watch is closed.  This will
+     * likely block until cancel is called.
+     */
+    promise: Promise<void>;
+}
 
 export default class Watcher {
     readonly runner;
 
+    /**
+     * Creates a Watcher.  See Watcher#file and Watcher#folder for more details
+     * on usage.
+     *
+     * @param runner    The runner to use when changes are detected
+     */
     constructor(runner: Runner) {
         this.runner = runner;
     }
 
-    file(configPath: string): Watch {
-        return readYaml(configPath).map(batch => this.watch(
-            path.join(path.dirname(configPath), batch.watch.folder),
+    /**
+     * Watch a job.  When any files covered by this job are modified, then this
+     * job will be run against those files.
+     *
+     * @param job   The job to watch
+     */
+    file(job: Job): Watch {
+        return job.batches.map(batch => this.watch(
+            path.join(path.dirname(job.file), batch.watch.folder),
             batch.watch.files,
             file => {
                 const promises = [];
@@ -33,6 +59,13 @@ export default class Watcher {
         });
     }
 
+    /**
+     * Watch a folder for job files.  When these files are detected, their jobs
+     * will be watched also.  Note that this will not run the detected jobs,
+     * but will run them on any files changed after the watch has started.
+     *
+     * @param folder    The folder (and subfolders) to watch for jobs
+     */
     folder(folder: string): Watch {
         const watching = new Map<string, Watch>();
         const dir = path.join(Deno.cwd(), folder)
@@ -40,7 +73,8 @@ export default class Watcher {
             if (entry.name.endsWith("automkv.yml")) {
                 const file = path.join(dir, entry.name);
                 log.info(`Watching ${file}`);
-                watching.set(file, this.file(file));
+                const job = this.safeGetJob(file);
+                if (job) watching.set(file, this.file(job));
             }
         }
         const watcher = Deno.watchFs(dir, {recursive: true});
@@ -48,25 +82,30 @@ export default class Watcher {
             for await (const event of watcher) {
                 if (event.paths.length < 1) continue;
 
-                const path = event.paths[0];
-                if (!path.endsWith("automkv.yml")) continue;
+                const file = event.paths[0];
+                if (!file.endsWith("automkv.yml")) continue;
 
                 switch (event.kind) {
-                    case "create":
-                        log.info(`Discovered ${path}`);
-                        watching.set(path, this.file(path));
+                    case "create": {
+                        log.info(`Discovered ${file}`);
+                        const job = this.safeGetJob(file);
+                        if (job) watching.set(file, this.file(job));
                         break;
-                    case "modify":
-                        log.info(`Updating ${path}`);
-                        if (watching.has(path))
-                            (watching.get(path) as Watch).cancel();
-                        watching.set(path, this.file(path));
+                    }
+                    case "modify": {
+                        log.info(`Updating ${file}`);
+                        if (watching.has(file))
+                            (watching.get(file) as Watch).cancel();
+                        const job = this.safeGetJob(file);
+                        if (job) watching.set(file, this.file(job));
                         break;
-                    case "remove":
-                        log.info(`Removing ${path}`);
-                        (watching.get(path) as Watch).cancel();
-                        watching.delete(path);
+                    }
+                    case "remove": {
+                        log.info(`Removing ${file}`);
+                        (watching.get(file) as Watch).cancel();
+                        watching.delete(file);
                         break;
+                    }
                 }
             }
             for (const watch of watching.values())
@@ -78,6 +117,16 @@ export default class Watcher {
         };
     }
 
+    /**
+     * Watch a folder for changes.  When any changes are detected in files that
+     * match the provided filter, then the update will fire.  The update should
+     * return the number of times the file was modified.
+     *
+     * @param folder    The folder to watch
+     * @param filter    The filter to apply to files within that folder
+     * @param update    The update to run - should return # of modifications
+     * @private         Currently only used internally due to complexity
+     */
     private watch(folder: string, filter: RegExp, update: (file: string) => Promise<number>): Watch {
         Deno.mkdirSync(folder, {recursive: true});
         const watcher = Deno.watchFs(folder);
@@ -114,6 +163,24 @@ export default class Watcher {
         return {
             cancel: () => watcher.close(),
             promise: promise()
+        }
+    }
+
+    /**
+     * Creates a Job from the specified file path, logging to the console if it
+     * fails and returning `undefined`.
+     *
+     * @param file  The file to pass to Job
+     * @private     Logs to console, internal use
+     */
+    private safeGetJob(file: string): Job | undefined {
+        try {
+            return new Job(file);
+        } catch (e) {
+            if (e instanceof Job.InvalidJobException)
+                log.error(`Skipping invalid job ${file}: ${e.message}`);
+            else
+                throw e;
         }
     }
 }

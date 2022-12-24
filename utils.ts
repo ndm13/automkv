@@ -1,43 +1,11 @@
-import {log, path, yaml} from "./deps.ts";
+import {path} from "./deps.ts";
 
-import {Batch} from "./types.ts";
-
-export function printUsage() {
-    console.log("Usage:");
-    console.log("  automkv watch <file>");
-    console.log("    Monitor the target 'automkv.yml' file's destination folder for any");
-    console.log("    changes, and run the edits in the file when any updates have");
-    console.log("    finished.")
-    console.log("  automkv watch <folder>");
-    console.log("    Monitor the target folder (and subfolders) for files ending in");
-    console.log("    'automkv.yml'.  Any files found will have their destination folders");
-    console.log("    monitored for changes, and the edits in the file will run when any");
-    console.log("    updates have finished.");
-    console.log("  automkv run <target_file>");
-    console.log("    Apply the edits in a 'automkv.yml' file immediately to all target");
-    console.log("    files in the target folder");
-    Deno.exit(0);
-}
-
-export function readYaml(ymlPath: string): Batch[] {
-    const yml = (yaml.parse(Deno.readTextFileSync(ymlPath)) as { batch: Batch[] }).batch;
-    if (!yml) {
-        log.warning(`Invalid file: ${ymlPath}`);
-        log.warning("Expecting root element to be 'batch'");
-        log.warning("This file will be skipped.")
-        throw new Error("Improper YAML file");
-    }
-    // While functionally a map, we need to make it official
-    for (const batch of yml) {
-        batch.watch.files = new RegExp(batch.watch.files);
-        if (batch.edits)
-            for (const edit of batch.edits)
-                edit.set = new Map(Object.entries(edit.set));
-    }
-
-    return yml;
-}
-
+/**
+ * Internal Windows-specific search logic used by getExe.
+ *
+ * @param exe       The executable to find
+ * @param decoder   A decoder for output text
+ */
 async function getExeWindows(exe: string, decoder: TextDecoder) {
     return await Deno.run({
         cmd: ["powershell", "-c", `(gcm ${exe}).Source`],
@@ -69,6 +37,19 @@ async function getExeWindows(exe: string, decoder: TextDecoder) {
         .catch(() => undefined);
 }
 
+/**
+ * Try resolving the path of an executable by name.  On Unix-like systems this
+ * uses `which`.  On Windows, it will attempt to:
+ * - Use `powershell`'s `gcm` to find the executable in the path
+ * - Use `powershell` to get the Program Files directory and try to find an
+ *   `MKVToolNix` folder, then try to find the executable there with an `.exe`
+ *   extension
+ *
+ * In either case, it will first check for an environment variable that shares
+ * its name with the executable and use that if set.
+ *
+ * @param exe   The executable to find
+ */
 export async function getExe(exe: string): Promise<string> {
     const env = exe.toUpperCase();
     let file = Deno.env.get(env);
@@ -100,6 +81,12 @@ export async function getExe(exe: string): Promise<string> {
     return file;
 }
 
+/**
+ * Shorthand for `() => { a(); b(); }`.
+ *
+ * @param a Void function to reduce
+ * @param b Void function to reduce
+ */
 export function reduceVoid(a: () => void, b: () => void): () => void {
     return () => {
         a();
@@ -107,7 +94,12 @@ export function reduceVoid(a: () => void, b: () => void): () => void {
     };
 }
 
+/**
+ * Shorthand for `Promise.all([a, b]).then(() => {})`.
+ *
+ * @param a Promise<void> to reduce
+ * @param b Promise<void> to reduce
+ */
 export function reduceVoidPromise(a: Promise<void>, b: Promise<void>): Promise<void> {
-    return Promise.all([a, b]).then(() => {
-    });
+    return Promise.all([a, b]).then(() => {});
 }
