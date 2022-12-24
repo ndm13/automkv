@@ -1,6 +1,6 @@
 import {path, log} from "./deps.ts";
 
-import {Edit, readAutoMKV} from "./batches.ts";
+import Job, {Edit} from "./job.ts";
 
 export default class Runner {
     private readonly decoder: TextDecoder = new TextDecoder();
@@ -13,14 +13,11 @@ export default class Runner {
         this.mkvextract = mkvextract;
     }
 
-    async batch(automkv: string): Promise<number> {
-        const yml = readAutoMKV(automkv);
-        if (!yml) return 0;
-
+    async batch(job: Job): Promise<number> {
         const promises = [];
-        for (const batch of yml) {
+        for (const batch of job.batches) {
             if (!batch.edits && !batch.chapters) continue;
-            const folder = path.join(path.dirname(automkv), batch.watch.folder || '.');
+            const folder = path.join(path.dirname(job.file), batch.watch.folder || '.');
             for await (const entry of Deno.readDir(folder))
                 if (entry.name.match(batch.watch.files)) {
                     const file = path.join(folder, entry.name);

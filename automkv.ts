@@ -1,6 +1,7 @@
 import {getExe} from "./utils.ts";
 import Runner from "./runner.ts";
 import Watcher from "./watcher.ts";
+import Job from "./job.ts";
 
 function printUsage() {
     console.log("Usage:");
@@ -38,7 +39,7 @@ switch (Deno.args[0]) {
     case "watch": {
         const stat = Deno.statSync(Deno.args[1]);
         if (stat.isFile)
-            await watcher.file(Deno.args[1]).promise;
+            await watcher.file(new Job(Deno.args[1])).promise;
         if (stat.isDirectory)
             await watcher.folder(Deno.args[1]).promise;
         console.error("Argument for watch is not a file or directory!");
@@ -46,7 +47,7 @@ switch (Deno.args[0]) {
         break;
     }
     case "run": {
-        await runner.batch(Deno.args[1]);
+        await runner.batch(new Job(Deno.args[1]));
         break;
     }
     case "help":
