@@ -1,7 +1,6 @@
 import {path, log} from "./deps.ts";
 
-import {Edit} from "./types.ts";
-import {readYaml} from "./utils.ts";
+import {Edit, readAutoMKV} from "./batches.ts";
 
 export default class Runner {
     private readonly decoder: TextDecoder = new TextDecoder();
@@ -15,7 +14,7 @@ export default class Runner {
     }
 
     async batch(automkv: string): Promise<number> {
-        const yml = readYaml(automkv);
+        const yml = readAutoMKV(automkv);
         if (!yml) return 0;
 
         const promises = [];

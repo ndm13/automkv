@@ -1,8 +1,13 @@
 import {log, path} from "./deps.ts";
 
-import {readYaml, reduceVoid, reduceVoidPromise} from "./utils.ts";
+import {reduceVoid, reduceVoidPromise} from "./utils.ts";
 import Runner from "./runner.ts";
-import {Watch} from "./types.ts";
+import {readAutoMKV} from "./batches.ts";
+
+export type Watch = {
+    cancel: () => void;
+    promise: Promise<void>;
+}
 
 export default class Watcher {
     readonly runner;
@@ -12,7 +17,7 @@ export default class Watcher {
     }
 
     file(configPath: string): Watch {
-        return readYaml(configPath).map(batch => this.watch(
+        return readAutoMKV(configPath).map(batch => this.watch(
             path.join(path.dirname(configPath), batch.watch.folder),
             batch.watch.files,
             file => {
