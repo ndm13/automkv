@@ -4,7 +4,7 @@ import Watcher from "./watcher.ts";
 
 const mkvpropedit = await getExe("mkvpropedit");
 const mkvextract = await getExe("mkvextract");
-const runner = new Runner(mkvpropedit);
+const runner = new Runner(mkvpropedit, mkvextract);
 const watcher = new Watcher(runner);
 
 console.log("Running automkv with versions:");
