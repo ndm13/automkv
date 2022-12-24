@@ -15,7 +15,16 @@ export default class Watcher {
         return readYaml(configPath).map(batch => this.watch(
             path.join(path.dirname(configPath), batch.watch.folder),
             batch.watch.files,
-            file => this.runner.edits(file, batch.edits))
+            file => {
+                const promises = [];
+                if (batch.edits)
+                    promises.push(this.runner.edits(file, batch.edits));
+                if (batch.chapters)
+                    promises.push(this.runner.chapters(file, batch.chapters));
+                return Promise
+                    .all(promises)
+                    .then((edits: number[]) => edits.reduce((a, b) => a + b));
+            })
         ).reduce((last, current) => {
             return {
                 cancel: reduceVoid(last.cancel, current.cancel),
@@ -73,7 +82,7 @@ export default class Watcher {
         Deno.mkdirSync(folder, {recursive: true});
         const watcher = Deno.watchFs(folder);
         const promise = async () => {
-            const latch = new Map<string,number>();
+            const latch = new Map<string, number>();
             for await (const event of watcher) {
                 if (event.paths.length < 1) continue;
                 const file = event.paths[0];

@@ -1,9 +1,13 @@
 batch:                                  # Every file has a root batch element
   - watch:                              # Watch as many folders as you want
       folder: Season 1                  # Folder name is static
-      files: S01E\d{2}\.mkv             # but file name is a RegExp
+      files: S01E\d{2}\.mkv$            # but file name is a RegExp
     edits:                              # Edits are per-track
       - edit: track:a2                  # Specify using mkvpropedit syntax
         set:                            # Set values to update
           flag-commentary: 1            # Booleans are 1/0 as per spec
           name: Director's Commentary   # Strings don't need any special formatting
+    chapters:                           # Chapters will only be mapped if there is
+      - Opening Credits                 #  an entry for each chapter.
+      - Episode                         # automkv files may include chapters, edits,
+      - Ending Credits                  #  both, or neither (but why neither?)
